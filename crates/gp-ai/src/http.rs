@@ -59,6 +59,51 @@ pub fn post_json_text(url: &str, body: &Value) -> Result<String, AiError> {
     finish(agent().post(url).send_json(body))
 }
 
+/// A JSON request with custom headers that accepts any 2xx response without requiring JSON.
+pub fn post_json_empty(url: &str, headers: &[(&str, &str)], body: &Value) -> Result<(), AiError> {
+    let mut req = agent().post(url);
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    let mut resp = req
+        .send_json(body)
+        .map_err(|e| AiError::Network(e.to_string()))?;
+    let status = resp.status().as_u16();
+    if (200..300).contains(&status) {
+        Ok(())
+    } else {
+        let body = resp
+            .body_mut()
+            .with_config()
+            .limit(64 * 1024)
+            .read_to_string()
+            .unwrap_or_default();
+        Err(AiError::Http {
+            status,
+            body: body.chars().take(BODY_SNIPPET).collect(),
+        })
+    }
+}
+
+/// Lightweight check of an endpoint; accepts 2xx and 405 (Method Not Allowed for POST-only APIs).
+pub fn probe_endpoint(url: &str, headers: &[(&str, &str)]) -> Result<u16, AiError> {
+    let mut req = agent().get(url);
+    for (k, v) in headers {
+        req = req.header(*k, *v);
+    }
+    let mut resp = req.call().map_err(|e| AiError::Network(e.to_string()))?;
+    let status = resp.status().as_u16();
+    if (200..300).contains(&status) || status == 405 {
+        Ok(status)
+    } else {
+        let body = resp.body_mut().read_to_string().unwrap_or_default();
+        Err(AiError::Http {
+            status,
+            body: body.chars().take(BODY_SNIPPET).collect(),
+        })
+    }
+}
+
 pub fn post_form(url: &str, form: &[(&str, &str)]) -> Result<Value, AiError> {
     parse(&finish(agent().post(url).send_form(form.iter().copied()))?)
 }

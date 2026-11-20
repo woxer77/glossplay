@@ -41,8 +41,13 @@ $unpacked = Join-Path $work ('unpacked-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $unpacked | Out-Null
 try {
     $member = "ffmpeg-$FfmpegVersion-essentials_build/bin/ffmpeg.exe"
-    # The tar that ships with Windows 10 and 11 reads 7z archives.
-    & "$env:SystemRoot\System32\tar.exe" -xf $archive -C $unpacked $member
+    $7z = @('7z.exe', 'C:\Program Files\7-Zip\7z.exe', "$env:ProgramFiles\7-Zip\7z.exe") | Where-Object { (Get-Command $_ -ErrorAction SilentlyContinue) -or (Test-Path $_) } | Select-Object -First 1
+    if ($7z) {
+        New-Item -ItemType Directory -Force (Split-Path (Join-Path $unpacked $member) -Parent) | Out-Null
+        & $7z e $archive "-o$unpacked\ffmpeg-$FfmpegVersion-essentials_build\bin" ffmpeg.exe -r -y
+    } else {
+        & "$env:SystemRoot\System32\tar.exe" -xf $archive -C $unpacked $member
+    }
     if ($LASTEXITCODE -ne 0) { throw 'Could not unpack the archive.' }
     $exe = Join-Path $unpacked $member
     $actual = (Get-FileHash $exe -Algorithm SHA256).Hash

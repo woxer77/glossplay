@@ -1600,7 +1600,7 @@ impl App {
         }
         let needle = self.search.to_lowercase();
         let current_media = self.session.as_ref().map(|s| s.media.clone());
-        let (mut jump, mut anki, mut delete) = (None, None, None);
+        let (mut jump, mut anki, mut custom_dict, mut delete) = (None, None, None, None);
         egui::ScrollArea::vertical()
             .auto_shrink(false)
             .show(ui, |ui| {
@@ -1656,6 +1656,20 @@ impl App {
                                 {
                                     anki = Some(entry.id);
                                 }
+                                let dict_label = if entry.custom_dict_synced_at.is_some() {
+                                    t(Tr::InCustomDict)
+                                } else {
+                                    t(Tr::SendToCustomDict)
+                                };
+                                if ui
+                                    .add_enabled(
+                                        entry.custom_dict_synced_at.is_none(),
+                                        egui::Button::new(dict_label).small(),
+                                    )
+                                    .clicked()
+                                {
+                                    custom_dict = Some(entry.id);
+                                }
                                 if ui
                                     .small_button(
                                         RichText::new(t(Tr::DeleteWord)).color(theme::danger()),
@@ -1677,6 +1691,9 @@ impl App {
         if let Some(id) = anki {
             self.export_to_anki(id);
         }
+        if let Some(id) = custom_dict {
+            self.export_to_custom_dict(id);
+        }
         if let Some(id) = delete {
             self.delete_word(id);
         }
@@ -1691,12 +1708,17 @@ impl App {
                 .iter()
                 .any(|v| v.id == id && v.anki_note_id.is_some())
         });
+        let in_custom_dict = p.saved_id.is_some_and(|id| {
+            self.vocab
+                .iter()
+                .any(|v| v.id == id && v.custom_dict_synced_at.is_some())
+        });
         let lang = self
             .session
             .as_ref()
             .and_then(|s| s.primary_track())
             .and_then(|t| t.track.lang.clone());
-        let (mut save, mut anki, mut close) = (false, false, false);
+        let (mut save, mut anki, mut custom_dict, mut close) = (false, false, false, false);
         // Above the subtitles and the controls, below every window.
         egui::Area::new(Id::unique("word-popup"))
             .order(egui::Order::Middle)
@@ -1786,16 +1808,30 @@ impl App {
                             if send.clicked() {
                                 anki = true;
                             }
+                            let dict_label = if in_custom_dict {
+                                t(Tr::InCustomDict)
+                            } else {
+                                t(Tr::SendToCustomDict)
+                            };
+                            let send_dict =
+                                ui.add_enabled(!in_custom_dict, egui::Button::new(dict_label));
+                            crate::record::place("send_to_custom_dict", send_dict.rect);
+                            if send_dict.clicked() {
+                                custom_dict = true;
+                            }
                             if ui.button(t(Tr::CopyWord)).clicked() {
                                 ui.ctx().copy_text(p.word.clone());
                             }
                         });
                     });
             });
-        if save || anki {
+        if save || anki || custom_dict {
             let id = self.save_popup_word();
             if let (true, Some(id)) = (anki, id) {
                 self.export_to_anki(id);
+            }
+            if let (true, Some(id)) = (custom_dict, id) {
+                self.export_to_custom_dict(id);
             }
         }
         if close {

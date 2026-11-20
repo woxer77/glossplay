@@ -744,6 +744,7 @@ pub fn language_line(ui: &mut egui::Ui, text: &str) -> bool {
 }
 
 fn words(ui: &mut egui::Ui, form: &Form, draft: &mut Config) {
+    ui.label(RichText::new("Anki").strong());
     form.row(ui, t(Tr::DeckRow), None, |ui| {
         form.text(ui, &mut draft.anki.deck, "Glossplay");
     });
@@ -751,6 +752,23 @@ fn words(ui: &mut egui::Ui, form: &Form, draft: &mut Config) {
         form.text(ui, &mut draft.anki.url, "http://127.0.0.1:8765");
     });
     crate::anki_ui::section(ui, form, draft);
+
+    ui.add_space(8.0);
+    ui.separator();
+    ui.add_space(8.0);
+
+    ui.label(RichText::new(t(Tr::SectionCustomDict)).strong());
+    form.row(ui, t(Tr::CustomDictAddressRow), None, |ui| {
+        form.text(
+            ui,
+            &mut draft.custom_dict.url,
+            "http://127.0.0.1:8000/api/words",
+        );
+    });
+    form.row(ui, t(Tr::CustomDictTokenRow), None, |ui| {
+        form.text(ui, &mut draft.custom_dict.token, "");
+    });
+    crate::custom_dict_ui::section(ui, form, draft);
 }
 
 fn player(ui: &mut egui::Ui, form: &Form, draft: &mut Config) {

@@ -11,6 +11,7 @@ pub struct Config {
     pub tts: Tts,
     pub training: Training,
     pub anki: Anki,
+    pub custom_dict: CustomDict,
     pub sources: Sources,
 }
 
@@ -266,6 +267,13 @@ impl Default for Anki {
     }
 }
 
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct CustomDict {
+    pub url: String,
+    pub token: String,
+}
+
 /// The user's own search server (Torznab) and TorrServer. Nothing is built in: search stays
 /// hidden until both addresses are filled in.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
@@ -383,5 +391,20 @@ style = \"from-the-future\"
     #[test]
     fn bad_type_is_an_error() {
         assert!(Config::from_toml("[player]\nvolume = \"loud\"\n").is_err());
+    }
+
+    #[test]
+    fn custom_dict_config_ac1() {
+        let toml_str = r#"
+[custom_dict]
+url = "http://127.0.0.1:9999/api/words"
+token = "secret123"
+"#;
+        let c = Config::from_toml(toml_str).unwrap();
+        assert_eq!(c.custom_dict.url, "http://127.0.0.1:9999/api/words");
+        assert_eq!(c.custom_dict.token, "secret123");
+        let serialized = c.to_toml();
+        let back = Config::from_toml(&serialized).unwrap();
+        assert_eq!(back.custom_dict, c.custom_dict);
     }
 }

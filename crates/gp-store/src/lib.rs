@@ -50,6 +50,7 @@ pub struct VocabEntry {
     pub word: NewWord,
     pub created_at: i64,
     pub anki_note_id: Option<i64>,
+    pub custom_dict_synced_at: Option<i64>,
 }
 
 /// Cached speech recognition: finished windows (empty for a pre-v2 row, where the
@@ -106,6 +107,8 @@ CREATE TABLE vocab (
 ",
     // One '0'/'1' per recognition window; empty means only the prefix up to covered_ms is done.
     "ALTER TABLE transcript ADD COLUMN done TEXT NOT NULL DEFAULT '';",
+    // Time of successful export to custom dictionary API.
+    "ALTER TABLE vocab ADD COLUMN custom_dict_synced_at INTEGER;",
 ];
 
 impl Store {
@@ -289,7 +292,7 @@ impl Store {
     pub fn list_words(&self) -> Result<Vec<VocabEntry>> {
         let mut stmt = self.conn.prepare_cached(
             "SELECT id, word, lang, translation, note, sentence, sentence_translation, media_title,
-                    media_path, pos_ms, cue_start_ms, cue_end_ms, created_at, anki_note_id
+                    media_path, pos_ms, cue_start_ms, cue_end_ms, created_at, anki_note_id, custom_dict_synced_at
              FROM vocab ORDER BY created_at DESC, id DESC",
         )?;
         let rows = stmt.query_map([], |r| {
@@ -310,6 +313,7 @@ impl Store {
                 },
                 created_at: r.get(12)?,
                 anki_note_id: r.get(13)?,
+                custom_dict_synced_at: r.get(14)?,
             })
         })?;
         Ok(rows.collect::<rusqlite::Result<_>>()?)
@@ -336,6 +340,14 @@ impl Store {
         self.conn.execute(
             "UPDATE vocab SET anki_note_id=?2 WHERE id=?1",
             [id, note_id],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_custom_dict_synced(&self, id: i64, timestamp: i64) -> Result<()> {
+        self.conn.execute(
+            "UPDATE vocab SET custom_dict_synced_at=?2 WHERE id=?1",
+            [id, timestamp],
         )?;
         Ok(())
     }
@@ -488,10 +500,24 @@ mod tests {
         assert_eq!(apple.anki_note_id, None);
 
         s.set_anki_id(id, 777).unwrap();
+        s.set_custom_dict_synced(id, 1700000000).unwrap();
         s.delete_word(other).unwrap();
         let list = s.list_words().unwrap();
         assert_eq!(list.len(), 1);
         assert_eq!(list[0].anki_note_id, Some(777));
+        assert_eq!(list[0].custom_dict_synced_at, Some(1700000000));
+    }
+
+    #[test]
+    fn custom_dict_synced_ac3() {
+        let s = Store::open_in_memory().unwrap();
+        let id = s.save_word(&word("synctest")).unwrap();
+        let list = s.list_words().unwrap();
+        assert_eq!(list[0].custom_dict_synced_at, None);
+
+        s.set_custom_dict_synced(id, 1700000000).unwrap();
+        let updated = s.list_words().unwrap();
+        assert_eq!(updated[0].custom_dict_synced_at, Some(1700000000));
     }
 
     #[test]

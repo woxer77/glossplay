@@ -38,8 +38,12 @@ if ($actual -ne $MpvArchiveSha256) {
 $unpacked = Join-Path $work ('unpacked-' + [Guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Force $unpacked | Out-Null
 try {
-    # The tar that ships with Windows 10 and 11 reads 7z archives.
-    & "$env:SystemRoot\System32\tar.exe" -xf $archive -C $unpacked libmpv-2.dll
+    $7z = @('7z.exe', 'C:\Program Files\7-Zip\7z.exe', "$env:ProgramFiles\7-Zip\7z.exe") | Where-Object { (Get-Command $_ -ErrorAction SilentlyContinue) -or (Test-Path $_) } | Select-Object -First 1
+    if ($7z) {
+        & $7z e $archive "-o$unpacked" libmpv-2.dll -y
+    } else {
+        & "$env:SystemRoot\System32\tar.exe" -xf $archive -C $unpacked libmpv-2.dll
+    }
     if ($LASTEXITCODE -ne 0) { throw 'Could not unpack the archive.' }
     $dll = Join-Path $unpacked 'libmpv-2.dll'
     $actual = (Get-FileHash $dll -Algorithm SHA256).Hash

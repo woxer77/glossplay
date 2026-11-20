@@ -983,6 +983,37 @@ impl App {
                     }
                     Err(e) => self.toast(tf(Tr::AnkiError, &[&e])),
                 },
+                Msg::CustomDict { vocab_id, result } => match result {
+                    Ok(()) => {
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)
+                            .map(|d| d.as_secs() as i64)
+                            .unwrap_or(0);
+                        if let Err(e) = self
+                            .jobs
+                            .store
+                            .lock()
+                            .unwrap()
+                            .set_custom_dict_synced(vocab_id, now)
+                        {
+                            eprintln!("glossplay: failed to update custom dict sync status: {e}");
+                        }
+                        self.reload_vocab();
+                        self.toast(t(Tr::CustomDictAdded));
+                    }
+                    Err(code) => {
+                        let text = if let Some(msg) = code.strip_prefix("network: ") {
+                            tf(Tr::CustomDictErrorNetwork, &[&msg])
+                        } else if code == "auth_401" {
+                            t(Tr::CustomDictErrorAuth).to_owned()
+                        } else if let Some(status) = code.strip_prefix("status_") {
+                            tf(Tr::CustomDictErrorServer, &[&status])
+                        } else {
+                            tf(Tr::CustomDictError, &[&code])
+                        };
+                        self.toast(text);
+                    }
+                },
                 Msg::Component { id, event } if id == crate::tts_setup::ID => {
                     self.on_tts_event(event)
                 }
@@ -1223,6 +1254,28 @@ impl App {
             entry.word,
             image,
             audio,
+        );
+    }
+
+    pub fn export_to_custom_dict(&mut self, vocab_id: i64) {
+        let Some(entry) = self.vocab.iter().find(|v| v.id == vocab_id).cloned() else {
+            return;
+        };
+        if self.cfg.custom_dict.url.trim().is_empty() {
+            self.toast(t(Tr::CustomDictNotConfigured));
+            return;
+        }
+        self.toast(t(Tr::CustomDictSending));
+        let token = if self.cfg.custom_dict.token.trim().is_empty() {
+            None
+        } else {
+            Some(self.cfg.custom_dict.token.clone())
+        };
+        self.jobs.export_custom_dict(
+            vocab_id,
+            self.cfg.custom_dict.url.clone(),
+            token,
+            entry.word,
         );
     }
 

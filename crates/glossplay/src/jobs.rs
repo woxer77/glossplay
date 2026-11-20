@@ -59,6 +59,10 @@ pub enum Msg {
         vocab_id: i64,
         result: Result<i64, String>,
     },
+    CustomDict {
+        vocab_id: i64,
+        result: Result<(), String>,
+    },
     Component {
         id: String,
         event: crate::components::Event,
@@ -432,6 +436,37 @@ impl Jobs {
                     other => other.to_string(),
                 });
             Msg::Anki { vocab_id, result }
+        });
+    }
+
+    pub fn export_custom_dict(
+        &self,
+        vocab_id: i64,
+        url: String,
+        token: Option<String>,
+        word: gp_store::NewWord,
+    ) {
+        self.spawn(move || {
+            let client = gp_ai::custom_dict::CustomDictClient::new(&url, token.as_deref());
+            let context = if word.sentence.trim().is_empty() {
+                None
+            } else {
+                Some(word.sentence.as_str())
+            };
+            let translation = if word.translation.trim().is_empty() {
+                None
+            } else {
+                Some(word.translation.as_str())
+            };
+            let result = client
+                .send_word(&word.word, context, translation)
+                .map_err(|e| match e {
+                    AiError::Network(ref msg) => format!("network: {msg}"),
+                    AiError::Http { status: 401, .. } => "auth_401".to_string(),
+                    AiError::Http { status, .. } => format!("status_{status}"),
+                    other => other.to_string(),
+                });
+            Msg::CustomDict { vocab_id, result }
         });
     }
 
@@ -932,5 +967,88 @@ mod tests {
         assert_eq!(more.results[14], "ru:line 14");
         let other_lang = translate_cached(&store, &fake, None, "de", &lines[..10], &[]).unwrap();
         assert_eq!(other_lang.requests, 1, "cache is per target language");
+    }
+
+    #[test]
+    fn custom_dict_export_job_e2e_ac7() {
+        use std::io::{BufRead, BufReader, Read, Write};
+        use std::net::TcpListener;
+
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let url = format!("http://127.0.0.1:{}/api/words", addr.port());
+
+        let server_thread = std::thread::spawn(move || {
+            let (mut stream, _) = listener.accept().unwrap();
+            let mut reader = BufReader::new(stream.try_clone().unwrap());
+            let mut request_line = String::new();
+            reader.read_line(&mut request_line).unwrap();
+            let mut content_length = 0;
+            let mut auth_found = false;
+            loop {
+                let mut line = String::new();
+                reader.read_line(&mut line).unwrap();
+                if line.trim().is_empty() {
+                    break;
+                }
+                if line.to_lowercase().starts_with("content-length:") {
+                    content_length = line.split(':').nth(1).unwrap().trim().parse().unwrap();
+                }
+                if line.to_lowercase().starts_with("authorization:")
+                    && line.contains("Bearer testtoken123")
+                {
+                    auth_found = true;
+                }
+            }
+            let mut body = vec![0u8; content_length];
+            reader.read_exact(&mut body).unwrap();
+            let body_str = String::from_utf8(body).unwrap();
+
+            let response = "HTTP/1.1 200 OK\r\nContent-Length: 0\r\nConnection: close\r\n\r\n";
+            stream.write_all(response.as_bytes()).unwrap();
+
+            (request_line, auth_found, body_str)
+        });
+
+        let store = Store::open_in_memory().unwrap();
+        let word_entry = gp_store::NewWord {
+            word: "serendipity".into(),
+            lang: "en".into(),
+            translation: "счастливая случайность".into(),
+            sentence: "What a serendipity!".into(),
+            ..Default::default()
+        };
+        let vocab_id = store.save_word(&word_entry).unwrap();
+
+        let ctx = egui::Context::default();
+        let jobs = Jobs::new(ctx, store);
+
+        jobs.export_custom_dict(vocab_id, url, Some("testtoken123".into()), word_entry);
+
+        let (request_line, auth_found, body_str) = server_thread.join().unwrap();
+        assert!(request_line.starts_with("POST /api/words"));
+        assert!(auth_found, "Authorization header must be present");
+        assert!(body_str.contains("serendipity"));
+        assert!(body_str.contains("счастливая случайность"));
+
+        let msg = jobs.rx.recv_timeout(Duration::from_secs(5)).unwrap();
+        match msg {
+            Msg::CustomDict {
+                vocab_id: id,
+                result,
+            } => {
+                assert_eq!(id, vocab_id);
+                assert!(result.is_ok());
+            }
+            _ => panic!("Expected Msg::CustomDict"),
+        }
+
+        jobs.store
+            .lock()
+            .unwrap()
+            .set_custom_dict_synced(vocab_id, 1700000000)
+            .unwrap();
+        let words = jobs.store.lock().unwrap().list_words().unwrap();
+        assert_eq!(words[0].custom_dict_synced_at, Some(1700000000));
     }
 }

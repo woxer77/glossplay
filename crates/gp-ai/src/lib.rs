@@ -1,7 +1,8 @@
 pub mod anki;
 pub mod asr;
+pub mod custom_dict;
 pub mod download;
-mod http;
+pub mod http;
 pub mod torrserver;
 pub mod torznab;
 pub mod translate;

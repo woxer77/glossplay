@@ -9,3 +9,4 @@ config.toml
 *.db-shm
 # Working notes of the development process; not part of the project.
 /docs/pipeline
+.agents

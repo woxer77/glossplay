@@ -7,6 +7,7 @@ mod buffering;
 mod components;
 mod context_menu;
 mod control;
+mod custom_dict_ui;
 mod dub;
 mod frame;
 mod help_ui;

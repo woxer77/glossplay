@@ -190,6 +190,39 @@ messages! {
     JumpHint => ["Jump to this moment", "Перейти к этому моменту", "Перейти до цього моменту"],
     InAnki => ["✔ In Anki", "✔ В Anki", "✔ В Anki"],
     SendToAnki => ["Send to Anki", "Отправить в Anki", "Надіслати в Anki"],
+    InCustomDict => ["✔ In dictionary", "✔ В словаре", "✔ У словнику"],
+    SendToCustomDict => ["Send to dictionary", "Отправить в словарь", "Надіслати в словник"],
+    CustomDictAddressRow => ["Dictionary API address", "Адрес API словаря", "Адреса API словника"],
+    CustomDictTokenRow => ["API Token (optional)", "Токен API (опционально)", "Токен API (опціонально)"],
+    CustomDictStatusRow => ["Dictionary connection", "Связь со словарём", "Зв’язок зі словником"],
+    CustomDictCheckButton => ["Check", "Проверить", "Перевірити"],
+    CustomDictChecking => ["Checking…", "Проверяем…", "Перевіряємо…"],
+    CustomDictConnected => ["Connected (HTTP {0})", "Подключено (HTTP {0})", "Підключено (HTTP {0})"],
+    CustomDictStatusError => ["Error: {0}", "Ошибка: {0}", "Помилка: {0}"],
+    CustomDictNotConfigured => [
+        "Dictionary API address is not configured (Settings → Words)",
+        "Адрес API словаря не настроен (Настройки → Слова)",
+        "Адреса API словника не налаштована (Налаштування → Слова)"
+    ],
+    CustomDictSending => ["Sending to dictionary…", "Отправляем в словарь…", "Надсилаємо в словник…"],
+    CustomDictAdded => ["Added to dictionary", "Добавлено в словарь", "Додано в словник"],
+    CustomDictError => ["Dictionary: {0}", "Словарь: {0}", "Словник: {0}"],
+    CustomDictErrorNetwork => [
+        "Dictionary unreachable: {0}",
+        "Словарь недоступен: {0}",
+        "Словник недоступний: {0}"
+    ],
+    CustomDictErrorAuth => [
+        "Dictionary: authorization error (401)",
+        "Словарь: ошибка авторизации (401)",
+        "Словник: помилка авторизації (401)"
+    ],
+    CustomDictErrorServer => [
+        "Dictionary: server error ({0})",
+        "Словарь: ошибка сервера ({0})",
+        "Словник: помилка сервера ({0})"
+    ],
+    SectionCustomDict => ["Custom dictionary", "Пользовательский словарь", "Користувацький словник"],
     DeleteWord => ["Delete", "Удалить", "Видалити"],
 
     // Word card.
