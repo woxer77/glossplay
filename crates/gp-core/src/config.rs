@@ -139,6 +139,33 @@ pub struct Subtitles {
     pub show_primary: bool,
     pub show_secondary: bool,
     pub auto_translate: bool,
+    /// `rows` (stacked vertically) or `columns` (side-by-side in one horizontal row).
+    pub layout: String,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum SubtitleLayout {
+    #[default]
+    Rows,
+    Columns,
+}
+
+impl SubtitleLayout {
+    pub const ALL: [Self; 2] = [Self::Rows, Self::Columns];
+
+    pub fn id(self) -> &'static str {
+        match self {
+            Self::Rows => "rows",
+            Self::Columns => "columns",
+        }
+    }
+
+    pub fn from_id(id: &str) -> Self {
+        match id {
+            "columns" => Self::Columns,
+            _ => Self::Rows,
+        }
+    }
 }
 
 impl Default for Subtitles {
@@ -153,6 +180,7 @@ impl Default for Subtitles {
             show_primary: true,
             show_secondary: true,
             auto_translate: true,
+            layout: "rows".into(),
         }
     }
 }
@@ -406,5 +434,19 @@ token = "secret123"
         let serialized = c.to_toml();
         let back = Config::from_toml(&serialized).unwrap();
         assert_eq!(back.custom_dict, c.custom_dict);
+    }
+
+    #[test]
+    fn subtitle_layout_config_roundtrip_ac3() {
+        let old = Config::from_toml("[subtitles]\nfont_size = 28.0\n").unwrap();
+        assert_eq!(old.subtitles.layout, "rows");
+        assert_eq!(SubtitleLayout::from_id(&old.subtitles.layout), SubtitleLayout::Rows);
+
+        let custom = Config::from_toml("[subtitles]\nlayout = \"columns\"\n").unwrap();
+        assert_eq!(custom.subtitles.layout, "columns");
+        assert_eq!(SubtitleLayout::from_id(&custom.subtitles.layout), SubtitleLayout::Columns);
+
+        let back = Config::from_toml(&custom.to_toml()).unwrap();
+        assert_eq!(back.subtitles.layout, "columns");
     }
 }
