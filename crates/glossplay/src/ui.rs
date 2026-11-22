@@ -461,6 +461,11 @@ impl App {
         // A click that only closes the context menu must not also pause.
         let menu_was_open = egui::Popup::is_id_open(ui.ctx(), crate::context_menu::id());
         let response = ui.interact(rect, Id::unique("video"), sense);
+        let active = !self.modal_open() && self.popup.is_none() && !menu_was_open;
+        if response.hovered() && active {
+            let scroll_y = ui.input(|i| i.smooth_scroll_delta.y);
+            self.adjust_volume_by_wheel(scroll_y);
+        }
         if response.double_clicked() {
             self.toggle_fullscreen(ui.ctx());
         } else if response.clicked() && !menu_was_open {
@@ -1876,6 +1881,25 @@ impl App {
         }
         ctx.request_repaint_after(Duration::from_secs(1));
     }
+
+    /// Adjusts the player volume by mouse wheel scroll (up or down).
+    /// Step is 5.0%, bounded within [0.0, 150.0].
+    /// Returns the new volume if adjusted.
+    pub fn adjust_volume_by_wheel(&mut self, scroll_y: f32) -> Option<f64> {
+        if scroll_y == 0.0 {
+            return None;
+        }
+        let target = step_volume(self.volume, scroll_y);
+        let up = scroll_y > 0.0;
+        if up && self.snap.muted {
+            let _ = self.player.mpv.set_flag("mute", false);
+        }
+        self.set_volume(target);
+        let percent = self.volume.round() as i32;
+        let icon = if percent == 0 { "🔇" } else { "🔊" };
+        self.toast_for(format!("{icon} {percent}%"), Duration::from_millis(1200));
+        Some(self.volume)
+    }
 }
 
 /// A row of widgets in the middle of a centred column. egui centres single widgets only, so
@@ -2001,5 +2025,40 @@ impl SubDraw {
             );
             *y = self.next(*y, galley.size().y + 8.0);
         }
+    }
+}
+
+pub fn step_volume(volume: f64, scroll_y: f32) -> f64 {
+    let step = 5.0;
+    if scroll_y > 0.0 {
+        (volume + step).min(150.0)
+    } else if scroll_y < 0.0 {
+        (volume - step).max(0.0)
+    } else {
+        volume
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mouse_wheel_volume_step_and_bounds_ac1_ac2() {
+        // AC-1: scroll up increases by 5%
+        assert_eq!(step_volume(100.0, 1.0), 105.0);
+        assert_eq!(step_volume(50.0, 120.0), 55.0);
+
+        // AC-2: scroll down decreases by 5% and clamps to 0
+        assert_eq!(step_volume(100.0, -1.0), 95.0);
+        assert_eq!(step_volume(2.0, -1.0), 0.0);
+        assert_eq!(step_volume(0.0, -1.0), 0.0);
+
+        // Clamping to 150% upper bound
+        assert_eq!(step_volume(148.0, 1.0), 150.0);
+        assert_eq!(step_volume(150.0, 1.0), 150.0);
+
+        // Zero scroll delta leaves volume unchanged
+        assert_eq!(step_volume(80.0, 0.0), 80.0);
     }
 }
