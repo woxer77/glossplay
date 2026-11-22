@@ -4,7 +4,7 @@
 //!
 //! The same table serves the keyboard, the self-test that replays layouts, and MCP.
 
-use eframe::egui::{Event, Key, Modifiers};
+use eframe::egui::{Event, Key, Modifiers, PointerButton, pos2};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
@@ -274,6 +274,20 @@ pub fn actions(events: &[Event], gate: Gate) -> Vec<Action> {
                 {
                     out.push(Action::Run(c));
                 }
+            }
+            Event::PointerButton {
+                button: PointerButton::Extra1,
+                pressed: true,
+                ..
+            } if gate.lets(Command::Back) => {
+                out.push(Action::Run(Command::Back));
+            }
+            Event::PointerButton {
+                button: PointerButton::Extra2,
+                pressed: true,
+                ..
+            } if gate.lets(Command::Forward) => {
+                out.push(Action::Run(Command::Forward));
             }
             Event::Paste(text) if gate.lets_paste() => out.push(Action::Paste(text.clone())),
             Event::PasteImage(_) if gate.lets_paste() => out.push(Action::Paste(String::new())),
@@ -864,5 +878,57 @@ mod tests {
             modifiers: Modifiers::MAC_CMD,
         };
         assert_eq!(actions(&[cmd_o], FREE), []);
+    }
+
+    #[test]
+    fn mouse_side_buttons_trigger_seek_commands_ac2_ac3_ac4() {
+        let extra1_press = Event::PointerButton {
+            pos: pos2(100.0, 100.0),
+            button: PointerButton::Extra1,
+            pressed: true,
+            modifiers: Modifiers::NONE,
+        };
+        let extra2_press = Event::PointerButton {
+            pos: pos2(100.0, 100.0),
+            button: PointerButton::Extra2,
+            pressed: true,
+            modifiers: Modifiers::NONE,
+        };
+        let extra1_release = Event::PointerButton {
+            pos: pos2(100.0, 100.0),
+            button: PointerButton::Extra1,
+            pressed: false,
+            modifiers: Modifiers::NONE,
+        };
+
+        // AC-2: Extra1 (Back) produces Command::Back when free
+        assert_eq!(
+            actions(&[extra1_press.clone()], FREE),
+            [Action::Run(Command::Back)]
+        );
+
+        // AC-3: Extra2 (Forward) produces Command::Forward when free
+        assert_eq!(
+            actions(&[extra2_press.clone()], FREE),
+            [Action::Run(Command::Forward)]
+        );
+
+        // Releases do not produce actions
+        assert_eq!(actions(&[extra1_release], FREE), []);
+
+        // AC-4: When typing or modal open, gate filters out the commands
+        let typing_gate = Gate {
+            typing: true,
+            modal: false,
+        };
+        assert_eq!(actions(&[extra1_press.clone()], typing_gate), []);
+        assert_eq!(actions(&[extra2_press.clone()], typing_gate), []);
+
+        let modal_gate = Gate {
+            typing: false,
+            modal: true,
+        };
+        assert_eq!(actions(&[extra1_press], modal_gate), []);
+        assert_eq!(actions(&[extra2_press], modal_gate), []);
     }
 }
