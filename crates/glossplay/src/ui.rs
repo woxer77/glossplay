@@ -463,7 +463,21 @@ impl App {
         let response = ui.interact(rect, Id::unique("video"), sense);
         let active = !self.modal_open() && self.popup.is_none() && !menu_was_open;
         if response.hovered() && active {
-            let scroll_y = ui.input(|i| i.smooth_scroll_delta.y);
+            let scroll_y = ui.input(|i| {
+                let mut wheel_y = 0.0;
+                for ev in &i.raw.events {
+                    if let egui::Event::MouseWheel { delta, .. } = ev {
+                        wheel_y += delta.y;
+                    }
+                }
+                if wheel_y != 0.0 {
+                    wheel_y
+                } else if i.smooth_scroll_delta.y.abs() >= 10.0 {
+                    i.smooth_scroll_delta.y
+                } else {
+                    0.0
+                }
+            });
             self.adjust_volume_by_wheel(scroll_y);
         }
         if response.double_clicked() {
@@ -702,9 +716,8 @@ impl App {
             down: at_top,
         };
         let track = (track_index, lang.as_deref());
-        let is_columns = self.cfg.subtitles.layout == "columns"
-            && !primary.is_empty()
-            && !secondary.is_empty();
+        let is_columns =
+            self.cfg.subtitles.layout == "columns" && !primary.is_empty() && !secondary.is_empty();
 
         let clicked = if is_columns {
             let gap = 24.0 * scale;
@@ -731,8 +744,15 @@ impl App {
             let mut y_left = y;
             let mut y_right = y;
 
-            let clicked =
-                self.primary_lines(ui, &draw_left, &primary, track, size, col_width, &mut y_left);
+            let clicked = self.primary_lines(
+                ui,
+                &draw_left,
+                &primary,
+                track,
+                size,
+                col_width,
+                &mut y_left,
+            );
             draw_right.secondary(
                 ui,
                 &secondary,
@@ -1951,12 +1971,13 @@ impl App {
         let target = step_volume(self.volume, scroll_y);
         let up = scroll_y > 0.0;
         if up && self.snap.muted {
-            let _ = self.player.mpv.set_flag("mute", false);
+            self.player.mpv.set_flag("mute", false);
         }
         self.set_volume(target);
         let percent = self.volume.round() as i32;
         let icon = if percent == 0 { "🔇" } else { "🔊" };
-        self.toast_for(format!("{icon} {percent}%"), Duration::from_millis(1200));
+        let text = tf(Tr::VolumeToast, &[&percent]);
+        self.toast_for(format!("{icon} {text}"), Duration::from_millis(1200));
         Some(self.volume)
     }
 }
@@ -2011,16 +2032,25 @@ pub fn subtitle_preview(ui: &mut egui::Ui, subs: &gp_core::config::Subtitles) {
                 let galleys: Vec<_> = samples
                     .iter()
                     .map(|(text, color, size)| {
-                        painter.layout(text.to_string(), FontId::proportional(*size), *color, col_width)
+                        painter.layout(
+                            text.to_string(),
+                            FontId::proportional(*size),
+                            *color,
+                            col_width,
+                        )
                     })
                     .collect();
                 let left_center = rect.center().x - gap / 2.0 - col_width / 2.0;
                 let right_center = rect.center().x + gap / 2.0 + col_width / 2.0;
                 let centers = [left_center, right_center];
                 for (i, galley) in galleys.into_iter().enumerate() {
-                    let at = pos2(centers[i] - galley.size().x / 2.0, rect.center().y - galley.size().y / 2.0);
+                    let at = pos2(
+                        centers[i] - galley.size().x / 2.0,
+                        rect.center().y - galley.size().y / 2.0,
+                    );
                     if let Some(plate) = look.plate {
-                        let backdrop = Rect::from_min_size(at, galley.size()).expand2(vec2(4.0, 2.0));
+                        let backdrop =
+                            Rect::from_min_size(at, galley.size()).expand2(vec2(4.0, 2.0));
                         painter.rect_filled(backdrop, 4.0, plate);
                     }
                     let color = galley.job.sections[0].format.color;
@@ -2038,7 +2068,8 @@ pub fn subtitle_preview(ui: &mut egui::Ui, subs: &gp_core::config::Subtitles) {
                 for galley in galleys {
                     let at = pos2(rect.center().x - galley.size().x / 2.0, y);
                     if let Some(plate) = look.plate {
-                        let backdrop = Rect::from_min_size(at, galley.size()).expand2(vec2(6.0, 2.0));
+                        let backdrop =
+                            Rect::from_min_size(at, galley.size()).expand2(vec2(6.0, 2.0));
                         painter.rect_filled(backdrop, 4.0, plate);
                     }
                     let color = galley.job.sections[0].format.color;

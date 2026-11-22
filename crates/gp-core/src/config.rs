@@ -440,11 +440,17 @@ token = "secret123"
     fn subtitle_layout_config_roundtrip_ac3() {
         let old = Config::from_toml("[subtitles]\nfont_size = 28.0\n").unwrap();
         assert_eq!(old.subtitles.layout, "rows");
-        assert_eq!(SubtitleLayout::from_id(&old.subtitles.layout), SubtitleLayout::Rows);
+        assert_eq!(
+            SubtitleLayout::from_id(&old.subtitles.layout),
+            SubtitleLayout::Rows
+        );
 
         let custom = Config::from_toml("[subtitles]\nlayout = \"columns\"\n").unwrap();
         assert_eq!(custom.subtitles.layout, "columns");
-        assert_eq!(SubtitleLayout::from_id(&custom.subtitles.layout), SubtitleLayout::Columns);
+        assert_eq!(
+            SubtitleLayout::from_id(&custom.subtitles.layout),
+            SubtitleLayout::Columns
+        );
 
         let back = Config::from_toml(&custom.to_toml()).unwrap();
         assert_eq!(back.subtitles.layout, "columns");

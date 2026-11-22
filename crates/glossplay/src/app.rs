@@ -46,8 +46,8 @@ pub struct WordPopup {
 
 impl WordPopup {
     #[allow(dead_code)]
-    pub fn token(&self) -> (usize, usize) {
-        self.tokens.first().copied().unwrap_or((0, 0))
+    pub fn first_token(&self) -> Option<(usize, usize)> {
+        self.tokens.first().copied()
     }
 
     pub fn contains_token(&self, cue: usize, token: usize) -> bool {
@@ -1154,7 +1154,9 @@ impl App {
     pub fn toggle_word_token(&mut self, cue: usize, token: usize, anchor: egui::Pos2) {
         let Some(s) = &self.session else { return };
         let Some(t) = s.primary_track() else { return };
-        let Some(c) = t.track.cues.get(cue) else { return };
+        let Some(c) = t.track.cues.get(cue) else {
+            return;
+        };
 
         let track_index = s.primary.unwrap_or(0);
         let lang = t.track.lang.clone();
@@ -1162,9 +1164,10 @@ impl App {
         let tokens_rc = self.tokens_for(track_index, cue, &cue_text, lang.as_deref());
 
         // Check if popup is currently open on the same cue
-        let same_cue = self.popup.as_ref().is_some_and(|p| {
-            p.tokens.first().map(|(c_idx, _)| *c_idx) == Some(cue)
-        });
+        let same_cue = self
+            .popup
+            .as_ref()
+            .is_some_and(|p| p.tokens.first().map(|(c_idx, _)| *c_idx) == Some(cue));
 
         if same_cue {
             let p = self.popup.as_mut().unwrap();
@@ -1181,11 +1184,20 @@ impl App {
             }
 
             p.tokens.sort_by_key(|(_, t_idx)| *t_idx);
-            let words: Vec<&str> = p.tokens
+            let words: Vec<&str> = p
+                .tokens
                 .iter()
                 .filter_map(|(_, idx)| tokens_rc.get(*idx).map(|tok| &cue_text[tok.range.clone()]))
                 .collect();
-            let new_word = words.join(" ");
+            let sep = if lang
+                .as_deref()
+                .is_some_and(|l| matches!(l, "zh" | "ja" | "yue" | "cmn"))
+            {
+                ""
+            } else {
+                " "
+            };
+            let new_word = words.join(sep);
             p.word = new_word.clone();
             p.saved_id = self
                 .vocab
@@ -1773,7 +1785,10 @@ mod tests {
         };
         let id = store.save_word(&phrase).unwrap();
         let words = store.list_words().unwrap();
-        let saved = words.iter().find(|w| w.id == id).expect("saved word exists");
+        let saved = words
+            .iter()
+            .find(|w| w.id == id)
+            .expect("saved word exists");
         assert_eq!(saved.word.word, "take care of");
         assert_eq!(saved.word.translation, "позаботиться о");
         assert_eq!(saved.word.sentence, "Please take care of yourself");
