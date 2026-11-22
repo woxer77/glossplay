@@ -313,8 +313,14 @@ impl App {
                 let paused = mpv.get_flag("pause").unwrap_or(self.snap.paused);
                 self.player.set_paused(!paused);
             }
-            C::Back => self.player.seek_relative(-5_000),
-            C::Forward => self.player.seek_relative(5_000),
+            C::Back => {
+                let step = self.seek_step_ms();
+                self.player.seek_relative(-step);
+            }
+            C::Forward => {
+                let step = self.seek_step_ms();
+                self.player.seek_relative(step);
+            }
             C::VolumeUp => self.set_volume(self.volume + 5.0),
             C::VolumeDown => self.set_volume(self.volume - 5.0),
             C::PreviousLine => self.cue_nav(-1),
@@ -2156,6 +2162,12 @@ pub fn step_volume(volume: f64, scroll_y: f32) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mouse_buttons_exist() {
+        let _ = egui::PointerButton::Extra1;
+        let _ = egui::PointerButton::Extra2;
+    }
 
     #[test]
     fn mouse_wheel_volume_step_and_bounds_ac1_ac2() {

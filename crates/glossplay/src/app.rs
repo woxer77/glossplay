@@ -1299,6 +1299,11 @@ impl App {
         self.reload_vocab();
     }
 
+    /// Jump distance in milliseconds for relative seeking.
+    pub fn seek_step_ms(&self) -> Ms {
+        seek_step_ms(self.cfg.player.seek_seconds)
+    }
+
     pub fn export_to_anki(&mut self, vocab_id: i64) {
         let Some(entry) = self.vocab.iter().find(|v| v.id == vocab_id).cloned() else {
             return;
@@ -1793,4 +1798,17 @@ mod tests {
         assert_eq!(saved.word.translation, "позаботиться о");
         assert_eq!(saved.word.sentence, "Please take care of yourself");
     }
+
+    #[test]
+    fn seek_step_ms_bounds_and_rounding_ac1() {
+        assert_eq!(seek_step_ms(5.0), 5_000);
+        assert_eq!(seek_step_ms(10.0), 10_000);
+        assert_eq!(seek_step_ms(2.5), 2_500);
+        assert_eq!(seek_step_ms(0.1), 1_000);
+        assert_eq!(seek_step_ms(600.0), 300_000);
+    }
+}
+
+pub fn seek_step_ms(seek_seconds: f64) -> Ms {
+    (seek_seconds.clamp(1.0, 300.0) * 1000.0).round() as Ms
 }
