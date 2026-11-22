@@ -1754,4 +1754,28 @@ mod tests {
         assert_eq!(popup.tokens, vec![(0, 1), (0, 3)]);
         assert!(!popup.contains_token(0, 2));
     }
+
+    #[test]
+    fn save_multi_word_phrase_ac8() {
+        let store = gp_store::Store::open_in_memory().unwrap();
+        let phrase = gp_store::NewWord {
+            word: "take care of".into(),
+            lang: "en".into(),
+            translation: "позаботиться о".into(),
+            note: "idiom".into(),
+            sentence: "Please take care of yourself".into(),
+            sentence_translation: "Пожалуйста, позаботься о себе".into(),
+            media_title: "Sample Video".into(),
+            media_path: "video.mp4".into(),
+            pos_ms: 12_000,
+            cue_start_ms: 10_000,
+            cue_end_ms: 14_000,
+        };
+        let id = store.save_word(&phrase).unwrap();
+        let words = store.list_words().unwrap();
+        let saved = words.iter().find(|w| w.id == id).expect("saved word exists");
+        assert_eq!(saved.word.word, "take care of");
+        assert_eq!(saved.word.translation, "позаботиться о");
+        assert_eq!(saved.word.sentence, "Please take care of yourself");
+    }
 }
