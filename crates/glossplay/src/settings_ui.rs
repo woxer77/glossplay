@@ -633,6 +633,21 @@ fn subtitles(ui: &mut egui::Ui, form: &Form, draft: &mut Config) {
                 }
             });
     });
+    form.row(ui, t(Tr::SubLayoutLabel), None, |ui| {
+        let current = gp_core::config::SubtitleLayout::from_id(&s.layout);
+        let layout_name = |layout: gp_core::config::SubtitleLayout| match layout {
+            gp_core::config::SubtitleLayout::Rows => t(Tr::SubLayoutRows),
+            gp_core::config::SubtitleLayout::Columns => t(Tr::SubLayoutColumns),
+        };
+        egui::ComboBox::from_id_salt("sub-layout")
+            .width(form.field)
+            .selected_text(layout_name(current))
+            .show_ui(ui, |ui| {
+                for layout in gp_core::config::SubtitleLayout::ALL {
+                    ui.selectable_value(&mut s.layout, layout.id().to_owned(), layout_name(layout));
+                }
+            });
+    });
     form.row(ui, t(Tr::SubMarginLabel), None, |ui| {
         form.slider(ui, egui::Slider::new(&mut s.margin, 0.0..=150.0));
     });
@@ -855,5 +870,16 @@ mod tests {
             assert_eq!(SettingsTab::parse(tab.id()), Some(tab));
         }
         assert_eq!(SettingsTab::parse("top"), None);
+    }
+
+    #[test]
+    fn subtitle_layout_names_are_available() {
+        for layout in gp_core::config::SubtitleLayout::ALL {
+            let name = match layout {
+                gp_core::config::SubtitleLayout::Rows => t(Tr::SubLayoutRows),
+                gp_core::config::SubtitleLayout::Columns => t(Tr::SubLayoutColumns),
+            };
+            assert!(!name.is_empty());
+        }
     }
 }
