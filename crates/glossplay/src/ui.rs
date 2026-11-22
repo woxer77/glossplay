@@ -696,12 +696,58 @@ impl App {
 
         let draw = SubDraw {
             rect,
+            center_x: rect.center().x,
             look,
             scale,
             down: at_top,
         };
         let track = (track_index, lang.as_deref());
-        let clicked = if at_top {
+        let is_columns = self.cfg.subtitles.layout == "columns"
+            && !primary.is_empty()
+            && !secondary.is_empty();
+
+        let clicked = if is_columns {
+            let gap = 24.0 * scale;
+            let total_width = rect.width() * 0.90;
+            let col_width = ((total_width - gap) / 2.0).max(120.0);
+            let left_center_x = rect.center().x - gap / 2.0 - col_width / 2.0;
+            let right_center_x = rect.center().x + gap / 2.0 + col_width / 2.0;
+
+            let draw_left = SubDraw {
+                rect,
+                center_x: left_center_x,
+                look,
+                scale,
+                down: at_top,
+            };
+            let draw_right = SubDraw {
+                rect,
+                center_x: right_center_x,
+                look,
+                scale,
+                down: at_top,
+            };
+
+            let mut y_left = y;
+            let mut y_right = y;
+
+            let clicked =
+                self.primary_lines(ui, &draw_left, &primary, track, size, col_width, &mut y_left);
+            draw_right.secondary(
+                ui,
+                &secondary,
+                secondary_lang.as_deref(),
+                small_size,
+                col_width,
+                &mut y_right,
+            );
+            let _ = if at_top {
+                y_left.max(y_right)
+            } else {
+                y_left.min(y_right)
+            };
+            clicked
+        } else if at_top {
             let clicked = self.primary_lines(ui, &draw, &primary, track, size, max_width, &mut y);
             draw.secondary(
                 ui,
@@ -740,7 +786,7 @@ impl App {
         max_width: f32,
         y: &mut f32,
     ) -> Option<(String, usize, usize, egui::Pos2)> {
-        let (rect, look, scale) = (draw.rect, &draw.look, draw.scale);
+        let (_rect, look, scale) = (draw.rect, &draw.look, draw.scale);
         let (track_index, lang) = track;
         let open_token = self.popup.as_ref().map(|p| p.token);
         let words_live = !self.modal_open();
@@ -786,7 +832,7 @@ impl App {
                 .fold(0.0, f32::max);
             let block_top = draw.top_of(*y, block_height);
             let block = Rect::from_min_size(
-                pos2(rect.center().x - widest / 2.0, block_top),
+                pos2(draw.center_x - widest / 2.0, block_top),
                 vec2(widest, block_height),
             );
             if let Some(plate) = look.plate {
@@ -795,7 +841,7 @@ impl App {
             }
             for (r, row) in rows.iter().enumerate() {
                 let width: f32 = row.iter().map(|(_, g)| g.size().x).sum();
-                let mut x = rect.center().x - width / 2.0;
+                let mut x = draw.center_x - width / 2.0;
                 let top = block.top() + r as f32 * row_height;
                 for (i, galley) in row {
                     let token = &tokens[*i];
@@ -1946,23 +1992,46 @@ pub fn subtitle_preview(ui: &mut egui::Ui, subs: &gp_core::config::Subtitles) {
                     size * subs.secondary_scale,
                 ),
             ];
-            let galleys: Vec<_> = samples
-                .iter()
-                .map(|(text, color, size)| {
-                    painter.layout(text.to_string(), FontId::proportional(*size), *color, inner)
-                })
-                .collect();
-            let total: f32 = galleys.iter().map(|g| g.size().y + 6.0).sum();
-            let mut y = rect.center().y - total / 2.0;
-            for galley in galleys {
-                let at = pos2(rect.center().x - galley.size().x / 2.0, y);
-                if let Some(plate) = look.plate {
-                    let backdrop = Rect::from_min_size(at, galley.size()).expand2(vec2(6.0, 2.0));
-                    painter.rect_filled(backdrop, 4.0, plate);
+            if subs.layout == "columns" {
+                let gap = 8.0;
+                let col_width = (inner - gap) / 2.0;
+                let galleys: Vec<_> = samples
+                    .iter()
+                    .map(|(text, color, size)| {
+                        painter.layout(text.to_string(), FontId::proportional(*size), *color, col_width)
+                    })
+                    .collect();
+                let left_center = rect.center().x - gap / 2.0 - col_width / 2.0;
+                let right_center = rect.center().x + gap / 2.0 + col_width / 2.0;
+                let centers = [left_center, right_center];
+                for (i, galley) in galleys.into_iter().enumerate() {
+                    let at = pos2(centers[i] - galley.size().x / 2.0, rect.center().y - galley.size().y / 2.0);
+                    if let Some(plate) = look.plate {
+                        let backdrop = Rect::from_min_size(at, galley.size()).expand2(vec2(4.0, 2.0));
+                        painter.rect_filled(backdrop, 4.0, plate);
+                    }
+                    let color = galley.job.sections[0].format.color;
+                    substyle::paint(&painter, at, galley, color, &look, 0.6);
                 }
-                let color = galley.job.sections[0].format.color;
-                y += galley.size().y + 6.0;
-                substyle::paint(&painter, at, galley, color, &look, 0.6);
+            } else {
+                let galleys: Vec<_> = samples
+                    .iter()
+                    .map(|(text, color, size)| {
+                        painter.layout(text.to_string(), FontId::proportional(*size), *color, inner)
+                    })
+                    .collect();
+                let total: f32 = galleys.iter().map(|g| g.size().y + 6.0).sum();
+                let mut y = rect.center().y - total / 2.0;
+                for galley in galleys {
+                    let at = pos2(rect.center().x - galley.size().x / 2.0, y);
+                    if let Some(plate) = look.plate {
+                        let backdrop = Rect::from_min_size(at, galley.size()).expand2(vec2(6.0, 2.0));
+                        painter.rect_filled(backdrop, 4.0, plate);
+                    }
+                    let color = galley.job.sections[0].format.color;
+                    y += galley.size().y + 6.0;
+                    substyle::paint(&painter, at, galley, color, &look, 0.6);
+                }
             }
         }
     });
@@ -1971,6 +2040,7 @@ pub fn subtitle_preview(ui: &mut egui::Ui, subs: &gp_core::config::Subtitles) {
 /// Where and how a block of subtitle lines is drawn.
 struct SubDraw {
     rect: Rect,
+    center_x: f32,
     look: substyle::Look,
     scale: f32,
     /// Lines stack downwards from the top edge instead of upwards from the bottom one.
@@ -2008,7 +2078,7 @@ impl SubDraw {
                 ui.painter()
                     .layout(text.replace('\n', " "), font, look.translation, max_width);
             let at = pos2(
-                self.rect.center().x - galley.size().x / 2.0,
+                self.center_x - galley.size().x / 2.0,
                 self.top_of(*y, galley.size().y),
             );
             if let Some(plate) = look.plate {
@@ -2060,5 +2130,21 @@ mod tests {
 
         // Zero scroll delta leaves volume unchanged
         assert_eq!(step_volume(80.0, 0.0), 80.0);
+    }
+
+    #[test]
+    fn subtitle_columns_geometry_ac4() {
+        let rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(1280.0, 720.0));
+        let scale = 1.0;
+        let gap = 24.0 * scale;
+        let total_width = rect.width() * 0.90;
+        let col_width = ((total_width - gap) / 2.0).max(120.0);
+        let left_center_x = rect.center().x - gap / 2.0 - col_width / 2.0;
+        let right_center_x = rect.center().x + gap / 2.0 + col_width / 2.0;
+
+        assert!(left_center_x < rect.center().x);
+        assert!(right_center_x > rect.center().x);
+        assert!((right_center_x - left_center_x) > col_width);
+        assert_eq!(col_width, (1280.0 * 0.90 - 24.0) / 2.0);
     }
 }
