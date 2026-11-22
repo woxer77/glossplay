@@ -794,7 +794,9 @@ fn player(ui: &mut egui::Ui, form: &Form, draft: &mut Config) {
         |ui| {
             form.slider(
                 ui,
-                egui::Slider::new(&mut draft.player.seek_seconds, 1.0..=60.0).step_by(1.0),
+                egui::Slider::new(&mut draft.player.seek_seconds, 1.0..=60.0)
+                    .step_by(1.0)
+                    .suffix(" s"),
             );
         },
     );

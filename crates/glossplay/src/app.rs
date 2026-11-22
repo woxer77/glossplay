@@ -1676,6 +1676,10 @@ fn make_translator(cfg: &Config) -> Result<Arc<dyn Translator>, String> {
         .map_err(|e| e.to_string())
 }
 
+pub fn seek_step_ms(seek_seconds: f64) -> Ms {
+    (seek_seconds.clamp(1.0, 300.0) * 1000.0).round() as Ms
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1807,8 +1811,4 @@ mod tests {
         assert_eq!(seek_step_ms(0.1), 1_000);
         assert_eq!(seek_step_ms(600.0), 300_000);
     }
-}
-
-pub fn seek_step_ms(seek_seconds: f64) -> Ms {
-    (seek_seconds.clamp(1.0, 300.0) * 1000.0).round() as Ms
 }

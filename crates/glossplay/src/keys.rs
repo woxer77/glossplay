@@ -4,7 +4,7 @@
 //!
 //! The same table serves the keyboard, the self-test that replays layouts, and MCP.
 
-use eframe::egui::{Event, Key, Modifiers, PointerButton, pos2};
+use eframe::egui::{Event, Key, Modifiers, PointerButton};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Command {
@@ -883,19 +883,19 @@ mod tests {
     #[test]
     fn mouse_side_buttons_trigger_seek_commands_ac2_ac3_ac4() {
         let extra1_press = Event::PointerButton {
-            pos: pos2(100.0, 100.0),
+            pos: eframe::egui::pos2(100.0, 100.0),
             button: PointerButton::Extra1,
             pressed: true,
             modifiers: Modifiers::NONE,
         };
         let extra2_press = Event::PointerButton {
-            pos: pos2(100.0, 100.0),
+            pos: eframe::egui::pos2(100.0, 100.0),
             button: PointerButton::Extra2,
             pressed: true,
             modifiers: Modifiers::NONE,
         };
         let extra1_release = Event::PointerButton {
-            pos: pos2(100.0, 100.0),
+            pos: eframe::egui::pos2(100.0, 100.0),
             button: PointerButton::Extra1,
             pressed: false,
             modifiers: Modifiers::NONE,
@@ -903,32 +903,38 @@ mod tests {
 
         // AC-2: Extra1 (Back) produces Command::Back when free
         assert_eq!(
-            actions(&[extra1_press.clone()], FREE),
+            actions(std::slice::from_ref(&extra1_press), FREE),
             [Action::Run(Command::Back)]
         );
 
         // AC-3: Extra2 (Forward) produces Command::Forward when free
         assert_eq!(
-            actions(&[extra2_press.clone()], FREE),
+            actions(std::slice::from_ref(&extra2_press), FREE),
             [Action::Run(Command::Forward)]
         );
 
         // Releases do not produce actions
-        assert_eq!(actions(&[extra1_release], FREE), []);
+        assert_eq!(actions(std::slice::from_ref(&extra1_release), FREE), []);
 
         // AC-4: When typing or modal open, gate filters out the commands
         let typing_gate = Gate {
             typing: true,
             modal: false,
         };
-        assert_eq!(actions(&[extra1_press.clone()], typing_gate), []);
-        assert_eq!(actions(&[extra2_press.clone()], typing_gate), []);
+        assert_eq!(
+            actions(std::slice::from_ref(&extra1_press), typing_gate),
+            []
+        );
+        assert_eq!(
+            actions(std::slice::from_ref(&extra2_press), typing_gate),
+            []
+        );
 
         let modal_gate = Gate {
             typing: false,
             modal: true,
         };
-        assert_eq!(actions(&[extra1_press], modal_gate), []);
-        assert_eq!(actions(&[extra2_press], modal_gate), []);
+        assert_eq!(actions(std::slice::from_ref(&extra1_press), modal_gate), []);
+        assert_eq!(actions(std::slice::from_ref(&extra2_press), modal_gate), []);
     }
 }
