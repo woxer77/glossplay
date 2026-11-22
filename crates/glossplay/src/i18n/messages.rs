@@ -133,6 +133,9 @@ messages! {
     SubPositionLabel => ["Position", "Положение", "Положення"],
     SubPosBottom => ["Bottom", "Снизу", "Знизу"],
     SubPosTop => ["Top", "Сверху", "Зверху"],
+    SubLayoutLabel => ["Layout", "Расположение", "Розташування"],
+    SubLayoutRows => ["Stacked (rows)", "Друг под другом (строки)", "Один під одним (рядки)"],
+    SubLayoutColumns => ["Side-by-side (columns)", "Рядом в строку (колонки)", "Поруч у рядок (колонки)"],
     SubMarginLabel => ["Distance from the edge", "Отступ от края", "Відступ від краю"],
     SubPreviewLabel => ["Preview", "Предпросмотр", "Попередній перегляд"],
     SubSampleOriginal => [
@@ -146,6 +149,7 @@ messages! {
         "Вчіться, поки дивитеся"
     ],
     SubSizeToast => ["Subtitle size {0}%", "Размер субтитров {0}%", "Розмір субтитрів {0}%"],
+    VolumeToast => ["Volume {0}%", "Громкость {0}%", "Гучність {0}%"],
     ThemeRow => ["Theme", "Тема", "Тема"],
     ThemeDark => ["Dark", "Тёмная", "Темна"],
     ThemeLight => ["Light", "Светлая", "Світла"],
