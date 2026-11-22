@@ -32,8 +32,8 @@ pub enum Async {
 pub struct WordPopup {
     pub request: u64,
     pub word: String,
-    /// (cue, token index) of the clicked word, to highlight exactly that one.
-    pub token: (usize, usize),
+    /// (cue, token index) of all selected words in order
+    pub tokens: Vec<(usize, usize)>,
     pub sentence: String,
     pub sentence_translation: String,
     pub cue: (Ms, Ms),
@@ -42,6 +42,17 @@ pub struct WordPopup {
     pub explanation: Async,
     pub saved_id: Option<i64>,
     pub resume_on_close: bool,
+}
+
+impl WordPopup {
+    #[allow(dead_code)]
+    pub fn token(&self) -> (usize, usize) {
+        self.tokens.first().copied().unwrap_or((0, 0))
+    }
+
+    pub fn contains_token(&self, cue: usize, token: usize) -> bool {
+        self.tokens.contains(&(cue, token))
+    }
 }
 
 #[derive(PartialEq, Clone, Copy)]
@@ -1128,7 +1139,7 @@ impl App {
             sentence: c.text.replace('\n', " "),
             sentence_translation: s.translation_of(cue).unwrap_or_default(),
             cue: (c.start, c.end),
-            token: (cue, token),
+            tokens: vec![(cue, token)],
             word,
             anchor,
             translation,
@@ -1137,6 +1148,80 @@ impl App {
             resume_on_close: was_playing,
         });
         self.player.set_paused(true);
+    }
+
+    /// Toggles a word token in the active word popup when Ctrl-clicked, or opens a new popup.
+    pub fn toggle_word_token(&mut self, cue: usize, token: usize, anchor: egui::Pos2) {
+        let Some(s) = &self.session else { return };
+        let Some(t) = s.primary_track() else { return };
+        let Some(c) = t.track.cues.get(cue) else { return };
+
+        let track_index = s.primary.unwrap_or(0);
+        let lang = t.track.lang.clone();
+        let cue_text = c.text.clone();
+        let tokens_rc = self.tokens_for(track_index, cue, &cue_text, lang.as_deref());
+
+        // Check if popup is currently open on the same cue
+        let same_cue = self.popup.as_ref().is_some_and(|p| {
+            p.tokens.first().map(|(c_idx, _)| *c_idx) == Some(cue)
+        });
+
+        if same_cue {
+            let p = self.popup.as_mut().unwrap();
+            let key = (cue, token);
+            if let Some(pos) = p.tokens.iter().position(|t| *t == key) {
+                p.tokens.remove(pos);
+            } else {
+                p.tokens.push(key);
+            }
+
+            if p.tokens.is_empty() {
+                self.close_popup();
+                return;
+            }
+
+            p.tokens.sort_by_key(|(_, t_idx)| *t_idx);
+            let words: Vec<&str> = p.tokens
+                .iter()
+                .filter_map(|(_, idx)| tokens_rc.get(*idx).map(|tok| &cue_text[tok.range.clone()]))
+                .collect();
+            let new_word = words.join(" ");
+            p.word = new_word.clone();
+            p.saved_id = self
+                .vocab
+                .iter()
+                .find(|v| v.word.word.to_lowercase() == new_word.to_lowercase())
+                .map(|v| v.id);
+
+            let sentence = p.sentence.clone();
+            self.next_request += 1;
+            let (translation, explanation) = match &self.translator {
+                Ok(tr) => {
+                    let src = lang
+                        .or(Some(self.cfg.general.learn_lang.clone()))
+                        .filter(|l| !l.is_empty());
+                    self.jobs.lookup_word(
+                        self.next_request,
+                        tr.clone(),
+                        new_word,
+                        sentence,
+                        src,
+                        self.cfg.general.native_lang.clone(),
+                    );
+                    (Async::Pending, Async::Pending)
+                }
+                Err(e) => (Async::Failed(e.clone()), Async::Idle),
+            };
+            p.request = self.next_request;
+            p.translation = translation;
+            p.explanation = explanation;
+        } else {
+            let word = tokens_rc
+                .get(token)
+                .map(|t| cue_text[t.range.clone()].to_string())
+                .unwrap_or_default();
+            self.open_word(word, cue, token, anchor);
+        }
     }
 
     pub fn close_popup(&mut self) {
@@ -1634,5 +1719,39 @@ mod tests {
         // The list is a frame old and the track may have shrunk meanwhile.
         assert_eq!(in_view(&t, &[58, 59, 60, 61], 10), Some(vec![58, 59]));
         assert_eq!(in_view(&t, &[], 10), None, "the sidebar is closed");
+    }
+
+    #[test]
+    fn word_popup_multi_token_toggle_and_reset_ac6_ac7() {
+        let mut popup = WordPopup {
+            request: 1,
+            word: "take".into(),
+            tokens: vec![(0, 1)],
+            sentence: "Please take care of yourself".into(),
+            sentence_translation: "".into(),
+            cue: (0, 2000),
+            anchor: egui::pos2(10.0, 20.0),
+            translation: Async::Idle,
+            explanation: Async::Idle,
+            saved_id: None,
+            resume_on_close: false,
+        };
+        assert!(popup.contains_token(0, 1));
+        assert!(!popup.contains_token(0, 2));
+
+        // Add second token out of order (e.g. index 3 then 2)
+        popup.tokens.push((0, 3)); // "of"
+        popup.tokens.push((0, 2)); // "care"
+        popup.tokens.sort_by_key(|(_, idx)| *idx);
+        assert_eq!(popup.tokens, vec![(0, 1), (0, 2), (0, 3)]);
+        assert!(popup.contains_token(0, 2));
+        assert!(popup.contains_token(0, 3));
+
+        // Toggle removal of (0, 2)
+        if let Some(pos) = popup.tokens.iter().position(|t| *t == (0, 2)) {
+            popup.tokens.remove(pos);
+        }
+        assert_eq!(popup.tokens, vec![(0, 1), (0, 3)]);
+        assert!(!popup.contains_token(0, 2));
     }
 }

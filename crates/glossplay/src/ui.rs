@@ -769,8 +769,12 @@ impl App {
             );
             self.primary_lines(ui, &draw, &primary, track, size, max_width, &mut y)
         };
-        if let Some((word, cue, token, anchor)) = clicked {
-            self.open_word(word, cue, token, anchor);
+        if let Some((word, cue, token, anchor, ctrl)) = clicked {
+            if ctrl {
+                self.toggle_word_token(cue, token, anchor);
+            } else {
+                self.open_word(word, cue, token, anchor);
+            }
         }
     }
 
@@ -785,12 +789,12 @@ impl App {
         size: f32,
         max_width: f32,
         y: &mut f32,
-    ) -> Option<(String, usize, usize, egui::Pos2)> {
+    ) -> Option<(String, usize, usize, egui::Pos2, bool)> {
         let (_rect, look, scale) = (draw.rect, &draw.look, draw.scale);
         let (track_index, lang) = track;
-        let open_token = self.popup.as_ref().map(|p| p.token);
+        let ctrl_held = ui.input(|i| i.modifiers.command || i.modifiers.ctrl);
         let words_live = !self.modal_open();
-        let mut clicked: Option<(String, usize, usize, egui::Pos2)> = None;
+        let mut clicked: Option<(String, usize, usize, egui::Pos2, bool)> = None;
         let ordered: Vec<&crate::session::Line> = if draw.down {
             lines.iter().collect()
         } else {
@@ -870,7 +874,10 @@ impl App {
                         )
                     });
                     let hovered = resp.as_ref().is_some_and(|r| r.hovered());
-                    let selected = open_token == Some((line.cue, *i));
+                    let selected = self
+                        .popup
+                        .as_ref()
+                        .is_some_and(|p| p.contains_token(line.cue, *i));
                     if hovered || selected {
                         ui.painter().rect_filled(
                             word_rect.expand2(vec2(2.0, 0.0)),
@@ -894,7 +901,13 @@ impl App {
                     }
                     if let Some(r) = resp {
                         if r.clicked() {
-                            clicked = Some((word.to_owned(), line.cue, *i, word_rect.center_top()));
+                            clicked = Some((
+                                word.to_owned(),
+                                line.cue,
+                                *i,
+                                word_rect.center_top(),
+                                ctrl_held,
+                            ));
                         }
                         // The word sits on the picture, so it opens the picture's menu.
                         if r.secondary_clicked() {
