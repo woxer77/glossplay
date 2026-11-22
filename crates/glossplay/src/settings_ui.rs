@@ -787,6 +787,12 @@ fn words(ui: &mut egui::Ui, form: &Form, draft: &mut Config) {
 }
 
 fn player(ui: &mut egui::Ui, form: &Form, draft: &mut Config) {
+    form.row(ui, t(Tr::SeekSecondsRow), Some(t(Tr::InfoSeekSeconds)), |ui| {
+        form.slider(
+            ui,
+            egui::Slider::new(&mut draft.player.seek_seconds, 1.0..=60.0).step_by(1.0),
+        );
+    });
     form.row(ui, t(Tr::HwdecRow), Some(t(Tr::InfoHwdec)), |ui| {
         form.text(ui, &mut draft.player.hwdec, "auto");
     });
@@ -881,5 +887,11 @@ mod tests {
             };
             assert!(!name.is_empty());
         }
+    }
+
+    #[test]
+    fn seek_seconds_labels_are_translated() {
+        assert!(!t(Tr::SeekSecondsRow).is_empty());
+        assert!(!t(Tr::InfoSeekSeconds).is_empty());
     }
 }
