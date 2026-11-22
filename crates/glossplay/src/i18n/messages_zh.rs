@@ -163,6 +163,7 @@ pub fn text(key: Tr) -> &'static str {
         Tr::AnkiCopyCode => "复制代码",
         Tr::AnkiCodeCopied => "已复制",
         Tr::SectionPlayer => "播放器",
+        Tr::SeekSecondsRow => "快进/快退时间",
         Tr::HwdecRow => "硬件解码",
         Tr::InterfaceScaleRow => "界面缩放",
         Tr::ShellCheck => "在资源管理器的“打开方式”和右键菜单中显示 Glossplay",
@@ -494,6 +495,7 @@ pub fn text(key: Tr) -> &'static str {
         }
         Tr::InfoAnki => "Anki 需要安装 AnkiConnect 插件并保持运行。已存的单词会进入这个牌组。",
         Tr::InfoHwdec => "让显卡解码视频。留空或填写“auto”；如果画面出现异常，填写“no”。",
+        Tr::InfoSeekSeconds => "方向键和鼠标侧键的前进/后退跨度。",
         Tr::InfoFfmpeg => "ffmpeg 用来读取视频文件内的字幕，以及语音识别所需的声音。",
         Tr::InfoScale => "放大或缩小所有文字和按钮。点击保存后生效。",
         Tr::AsrListensFor => "识别语言：{0}（视频语言）",

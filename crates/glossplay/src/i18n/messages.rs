@@ -335,6 +335,7 @@ messages! {
     AnkiCopyCode => ["Copy the code", "Скопировать код", "Скопіювати код"],
     AnkiCodeCopied => ["Copied", "Скопировано", "Скопійовано"],
     SectionPlayer => ["Player", "Плеер", "Плеєр"],
+    SeekSecondsRow => ["Seek interval", "Время перемотки", "Час перемотування"],
     HwdecRow => ["Hardware decoding", "Аппаратное декодирование", "Апаратне декодування"],
     InterfaceScaleRow => ["Interface scale", "Масштаб интерфейса", "Масштаб інтерфейсу"],
     ShellCheck => [
@@ -1280,6 +1281,11 @@ messages! {
         "Lets the graphics card decode the video. Leave it empty or \"auto\"; write \"no\" if the picture has glitches.",
         "Декодирование видео видеокартой. Оставьте пустым или «auto»; напишите «no», если картинка с артефактами.",
         "Декодування відео відеокартою. Залиште порожнім або «auto»; напишіть «no», якщо зображення з артефактами."
+    ],
+    InfoSeekSeconds => [
+        "Jump distance for the arrow keys and mouse side buttons.",
+        "Интервал перехода вперёд и назад по стрелкам и боковым кнопкам мыши.",
+        "Інтервал переходу вперед і назад за стрілками та бічними кнопками миші."
     ],
     InfoFfmpeg => [
         "ffmpeg reads the subtitles inside video files and the sound for speech recognition.",
