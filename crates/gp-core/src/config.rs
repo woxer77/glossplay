@@ -107,6 +107,8 @@ pub struct Player {
     pub ytdl_path: String,
     /// Where saved frames go; empty means "Pictures/Glossplay".
     pub frames_dir: String,
+    /// Relative seek step in seconds (default: 5.0).
+    pub seek_seconds: f64,
 }
 
 impl Default for Player {
@@ -118,6 +120,7 @@ impl Default for Player {
             ffmpeg_path: String::new(),
             ytdl_path: String::new(),
             frames_dir: String::new(),
+            seek_seconds: 5.0,
         }
     }
 }
@@ -454,5 +457,17 @@ token = "secret123"
 
         let back = Config::from_toml(&custom.to_toml()).unwrap();
         assert_eq!(back.subtitles.layout, "columns");
+    }
+
+    #[test]
+    fn player_seek_seconds_config_roundtrip_ac1() {
+        let old = Config::from_toml("[player]\nvolume = 80.0\n").unwrap();
+        assert_eq!(old.player.seek_seconds, 5.0);
+
+        let custom = Config::from_toml("[player]\nseek_seconds = 10.0\n").unwrap();
+        assert_eq!(custom.player.seek_seconds, 10.0);
+
+        let back = Config::from_toml(&custom.to_toml()).unwrap();
+        assert_eq!(back.player.seek_seconds, 10.0);
     }
 }
