@@ -469,22 +469,19 @@ impl App {
         let response = ui.interact(rect, Id::unique("video"), sense);
         let active = !self.modal_open() && self.popup.is_none() && !menu_was_open;
         if response.hovered() && active {
-            let scroll_y = ui.input(|i| {
-                let mut wheel_y = 0.0;
+            let events = ui.input(|i| {
+                let mut list = Vec::new();
                 for ev in &i.raw.events {
-                    if let egui::Event::MouseWheel { delta, .. } = ev {
-                        wheel_y += delta.y;
+                    if let egui::Event::MouseWheel { unit, delta, .. } = ev {
+                        list.push((*unit, delta.y));
                     }
                 }
-                if wheel_y != 0.0 {
-                    wheel_y
-                } else if i.smooth_scroll_delta.y.abs() >= 10.0 {
-                    i.smooth_scroll_delta.y
-                } else {
-                    0.0
-                }
+                list
             });
-            self.adjust_volume_by_wheel(scroll_y);
+            let steps = wheel_steps(&events, &mut self.wheel_accum);
+            self.adjust_volume_by_steps(steps);
+        } else {
+            self.wheel_accum = 0.0;
         }
         if response.double_clicked() {
             self.toggle_fullscreen(ui.ctx());
@@ -1967,16 +1964,15 @@ impl App {
         ctx.request_repaint_after(Duration::from_secs(1));
     }
 
-    /// Adjusts the player volume by mouse wheel scroll (up or down).
+    /// Adjusts the player volume by discrete steps (positive for up, negative for down).
     /// Step is 5.0%, bounded within [0.0, 150.0].
     /// Returns the new volume if adjusted.
-    pub fn adjust_volume_by_wheel(&mut self, scroll_y: f32) -> Option<f64> {
-        if scroll_y == 0.0 {
+    pub fn adjust_volume_by_steps(&mut self, steps: i32) -> Option<f64> {
+        if steps == 0 {
             return None;
         }
-        let target = step_volume(self.volume, scroll_y);
-        let up = scroll_y > 0.0;
-        if up && self.snap.muted {
+        let target = (self.volume + (steps as f64) * 5.0).clamp(0.0, 150.0);
+        if steps > 0 && self.snap.muted {
             self.player.mpv.set_flag("mute", false);
         }
         self.set_volume(target);
@@ -1985,6 +1981,19 @@ impl App {
         let text = tf(Tr::VolumeToast, &[&percent]);
         self.toast_for(format!("{icon} {text}"), Duration::from_millis(1200));
         Some(self.volume)
+    }
+
+    /// Adjusts the player volume by mouse wheel scroll delta.
+    /// Returns the new volume if adjusted.
+    #[allow(dead_code)]
+    pub fn adjust_volume_by_wheel(&mut self, scroll_y: f32) -> Option<f64> {
+        if scroll_y > 0.0 {
+            self.adjust_volume_by_steps(1)
+        } else if scroll_y < 0.0 {
+            self.adjust_volume_by_steps(-1)
+        } else {
+            None
+        }
     }
 }
 
@@ -2148,6 +2157,52 @@ impl SubDraw {
     }
 }
 
+pub fn wheel_steps(events: &[(egui::MouseWheelUnit, f32)], accum: &mut f32) -> i32 {
+    let mut total_steps = 0;
+    for &(unit, delta_y) in events {
+        match unit {
+            egui::MouseWheelUnit::Line => {
+                let steps = if delta_y.abs() >= 1.0 {
+                    delta_y.round() as i32
+                } else if delta_y > 0.0 {
+                    1
+                } else if delta_y < 0.0 {
+                    -1
+                } else {
+                    0
+                };
+                total_steps += steps;
+                *accum = 0.0;
+            }
+            egui::MouseWheelUnit::Page => {
+                let steps = if delta_y > 0.0 {
+                    1
+                } else if delta_y < 0.0 {
+                    -1
+                } else {
+                    0
+                };
+                total_steps += steps;
+                *accum = 0.0;
+            }
+            egui::MouseWheelUnit::Point => {
+                if (delta_y > 0.0 && *accum < 0.0) || (delta_y < 0.0 && *accum > 0.0) {
+                    *accum = 0.0;
+                }
+                *accum += delta_y;
+                const THRESHOLD: f32 = 25.0;
+                if accum.abs() >= THRESHOLD {
+                    let steps = (*accum / THRESHOLD).trunc() as i32;
+                    total_steps += steps;
+                    *accum -= steps as f32 * THRESHOLD;
+                }
+            }
+        }
+    }
+    total_steps
+}
+
+#[cfg(test)]
 pub fn step_volume(volume: f64, scroll_y: f32) -> f64 {
     let step = 5.0;
     if scroll_y > 0.0 {
@@ -2167,6 +2222,66 @@ mod tests {
     fn mouse_buttons_exist() {
         let _ = egui::PointerButton::Extra1;
         let _ = egui::PointerButton::Extra2;
+    }
+
+    #[test]
+    fn wheel_steps_line_and_point_handling() {
+        let mut accum = 0.0;
+
+        // Line unit: single clicks
+        assert_eq!(
+            wheel_steps(&[(egui::MouseWheelUnit::Line, 1.0)], &mut accum),
+            1
+        );
+        assert_eq!(
+            wheel_steps(&[(egui::MouseWheelUnit::Line, -1.0)], &mut accum),
+            -1
+        );
+
+        // Multiple discrete clicks in one frame
+        assert_eq!(
+            wheel_steps(
+                &[
+                    (egui::MouseWheelUnit::Line, 1.0),
+                    (egui::MouseWheelUnit::Line, 1.0),
+                ],
+                &mut accum
+            ),
+            2
+        );
+
+        // Fractional line delta (fallback)
+        assert_eq!(
+            wheel_steps(&[(egui::MouseWheelUnit::Line, 0.5)], &mut accum),
+            1
+        );
+        assert_eq!(
+            wheel_steps(&[(egui::MouseWheelUnit::Line, -0.5)], &mut accum),
+            -1
+        );
+
+        // Empty events produce zero steps
+        assert_eq!(wheel_steps(&[], &mut accum), 0);
+
+        // Point unit: accumulating small trackpad deltas
+        assert_eq!(
+            wheel_steps(&[(egui::MouseWheelUnit::Point, 10.0)], &mut accum),
+            0
+        );
+        assert_eq!(accum, 10.0);
+        // Exceeding threshold (25.0) triggers 1 step and keeps remainder
+        assert_eq!(
+            wheel_steps(&[(egui::MouseWheelUnit::Point, 18.0)], &mut accum),
+            1
+        );
+        assert_eq!(accum, 3.0);
+
+        // Direction reversal resets accumulator
+        assert_eq!(
+            wheel_steps(&[(egui::MouseWheelUnit::Point, -5.0)], &mut accum),
+            0
+        );
+        assert_eq!(accum, -5.0);
     }
 
     #[test]

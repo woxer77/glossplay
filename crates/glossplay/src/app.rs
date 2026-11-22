@@ -127,6 +127,8 @@ pub struct App {
     pub dub: Option<crate::dub::Dub>,
     /// The volume the user set; the player plays quieter while the voice-over is on.
     pub volume: f64,
+    /// Accumulated mouse wheel pixel delta for smooth trackpad scrolling.
+    pub wheel_accum: f32,
     /// A self-test run: nothing is heard and no choice is saved. Kept apart from `selftest`,
     /// which is taken out of the app while the test steps.
     pub quiet: bool,
@@ -284,6 +286,7 @@ impl App {
             search_ui: crate::search_ui::SearchUi::new(),
             dub: None,
             volume: cfg.player.volume,
+            wheel_accum: 0.0,
             quiet,
             dub_save,
             key_log: Vec::new(),
